@@ -1,0 +1,41 @@
+
+datatype ClusterId = ld | ny
+MaxMessages = 100
+Message = {1..MaxMessages}
+
+channel comeOnline, goOffline : ClusterId
+channel send, receive, write : ClusterId . Message
+
+
+Cluster(i) = 
+  let
+    Online = 
+      goOffline!i -> Offline
+      |~|
+      receive!i?m -> Writing(m)
+
+    Writing(m) =
+      goOffline!i -> Offline 
+      |~| 
+      write!i!m -> Online
+
+    Offline = comeOnline!i -> Online
+  within
+    Online
+
+Writer(clusters) = 
+  let
+    Write(m, cs) =
+      if m == MaxMessages and cs == <> then STOP
+      else if cs == <> then Write(m + 1, clusters)
+      else send!head(cs)!m -> Write(m, tail(cs))
+  within
+    Write(1, clusters)
+
+NetworkLink(c) = send!c?m -> receive!c!m -> NetworkLink(c)
+
+Clusters = ||| i: ClusterId @ Cluster(i)
+
+NetworkLinks = ||| i: ClusterId @ NetworkLink(i)
+
+System = (Clusters [|{|receive|}|] NetworkLinks) [|{|send|}|] Writer(<ld, ny>)
