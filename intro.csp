@@ -1,0 +1,86 @@
+P1 = STOP
+
+channel e
+
+P2 = e -> STOP
+
+P3 = e -> P3
+
+assert P3 :[deadlock free]
+
+assert P2 :[deadlock free]
+
+channel tea, coffee
+
+VM = tea -> VM
+     [] 
+     coffee -> VM
+
+CoffeeDrinker = coffee -> CoffeeDrinker
+
+CoffeeDrinkerAndMachineInteraction = VM [|{coffee, tea}|] CoffeeDrinker
+
+assert CoffeeDrinkerAndMachineInteraction :[deadlock free]
+
+channel service
+
+FiniteCapacityVM = 
+  let
+    Full =
+      (tea -> FiniteCapacityVM
+       []
+       coffee -> FiniteCapacityVM)
+
+    Empty = service -> Full
+  within
+    Full |~| Empty
+
+-- TODO: it's not clear why we synchronise on service here
+CoffeeDrinkerAndFiniteMachineInteraction = FiniteCapacityVM [|{coffee, tea, service}|] CoffeeDrinker
+
+assert CoffeeDrinkerAndFiniteMachineInteraction :[deadlock free]
+
+ServicePerson = service -> ServicePerson
+
+CDFMSP = (ServicePerson [|{service}|] FiniteCapacityVM) [|{coffee, tea}|] CoffeeDrinker
+
+assert CDFMSP :[deadlock free]
+
+-- TODO: meaningful example
+
+-- Therac-25
+
+channel high, low, fire, cancel, hb, lb, hs, ls
+
+System = SetLow ; Ready
+
+Ready = high -> High [] low -> Low
+
+High = (HighTreatment /\ cancel -> SKIP) ; Ready
+
+HighTreatment = SetHigh ; fire -> SetLow
+
+SetHigh = hs -> SKIP ||| hb -> SKIP
+
+SetLow = lb -> SKIP ||| ls -> SKIP
+
+Low = (LowTreatment /\ cancel -> SKIP) ; Ready
+
+LowTreatment = fire -> SKIP
+
+---
+
+Allowed(shieldUp, highSelected) = 
+     hb -> Allowed(shieldUp, true)
+  [] lb -> Allowed(shieldUp, false)
+  [] hs -> Allowed(true, highSelected)
+  [] ls -> Allowed(false, highSelected)
+  [] shieldUp or not highSelected & fire -> Allowed(shieldUp, highSelected)
+
+Irrelevant = {high, low, cancel}
+
+SafeSystemSpec = Allowed(false, true) ||| CHAOS(Irrelevant)
+
+---
+
+assert SafeSystemSpec [T= System
