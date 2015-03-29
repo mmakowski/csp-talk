@@ -15,8 +15,6 @@ Cluster(i) =
       receive!i?m -> Writing(m)
 
     Writing(m) =
-      goOffline!i -> Offline 
-      |~| 
       write!i!m -> Online
 
     Offline = comeOnline!i -> Online
@@ -27,7 +25,7 @@ MultiClusterWriter(cluster1, cluster2, messages) =
   let
     Write(ms) =
       if ms == <> then STOP
-      else Send(cluster1, head(ms)) ; Send(cluster2, head(ms)) ; Write(tail(ms))
+      else (Send(cluster1, head(ms)) ||| Send(cluster2, head(ms))) ; Write(tail(ms))
 
     Send(cluster, m) =
       send!cluster!m -> SKIP
@@ -48,3 +46,7 @@ MessagesWritten(cluster, messages) =
 msgs = <1,2,3,4,5>
 
 assert MessagesWritten(ny, msgs) [T= System(msgs) \ diff(Events, {| write.ny |})
+
+assert MessagesWritten(ny, msgs) [F= System(msgs) \ diff(Events, {| write.ny |})
+
+assert MessagesWritten(ny, msgs) [FD= System(msgs) \ diff(Events, {| write.ny |})
