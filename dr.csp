@@ -23,14 +23,16 @@ Cluster(i) =
   within
     Online
 
-Writer(clusters) = 
+MultiClusterWriter(cluster1, cluster2, messages) = 
   let
-    Write(m, cs) =
-      if m == MaxMessages and cs == <> then STOP
-      else if cs == <> then Write(m + 1, clusters)
-      else send!head(cs)!m -> Write(m, tail(cs))
+    Write(ms) =
+      if ms == <> then STOP
+      else Send(cluster1, head(ms)) ; Send(cluster2, head(ms)) ; Write(tail(ms))
+
+    Send(cluster, m) =
+      send!cluster!m -> SKIP
   within
-    Write(1, clusters)
+    Write(messages)
 
 NetworkLink(c) = send!c?m -> receive!c!m -> NetworkLink(c)
 
@@ -38,4 +40,11 @@ Clusters = ||| i: ClusterId @ Cluster(i)
 
 NetworkLinks = ||| i: ClusterId @ NetworkLink(i)
 
-System = (Clusters [|{|receive|}|] NetworkLinks) [|{|send|}|] Writer(<ld, ny>)
+System(messages) = (Clusters [|{|receive|}|] NetworkLinks) [|{|send|}|] MultiClusterWriter(ld, ny, messages)
+
+MessagesWritten(cluster, messages) =
+  messages != <> & write!cluster!head(messages) -> MessagesWritten(cluster, tail(messages))
+
+msgs = <1,2,3,4,5>
+
+assert MessagesWritten(ny, msgs) [T= System(msgs) \ diff(Events, {| write.ny |})
